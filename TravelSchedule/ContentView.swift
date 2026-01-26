@@ -20,13 +20,16 @@ struct ContentView: View {
 private func runNetworkSmokeTests() {
     Task {
         do {
+            let key = APIKey.yandexRasp
             let client = Client(
                 serverURL: try Servers.Server1.url(),
-                transport: URLSessionTransport()
+                transport: URLSessionTransport(),
+                middlewares: [
+                    APIKeyQueryMiddleware(apiKey: APIKey.yandexRasp)
+                ]
             )
 
-            let key = APIKey.yandexRasp
-
+            
             let nearestStations = NearestStationsService(client: client, apikey: key)
             let searchService = SearchBetweenStationsService(client: client, apikey: key)
             let scheduleService = ScheduleOnStationService(client: client, apikey: key)
@@ -35,8 +38,8 @@ private func runNetworkSmokeTests() {
             let carrierService = CarrierInfoService(client: client, apikey: key)
             let stationsListService = StationsListService(client: client, apikey: key)
             let copyrightService = CopyrightService(client: client, apikey: key)
-
-            // ✅ Список ближайших станций
+            
+            // ✅ nearest_stations
             do {
                 let result = try await nearestStations.getNearestStations(
                     lat: 59.864177,
@@ -47,20 +50,18 @@ private func runNetworkSmokeTests() {
             } catch {
                 print("❌ nearest_stations error: \(error)")
             }
-
-            // ✅ Расписание рейсов между станциями
+            
+            // ✅ search
+            var threadUID: String? = nil
             do {
-                let result = try await searchService.search(
-                    from: "c146",
-                    to: "c213",
-                    date: nil
-                )
-                print("✅ search OK: \(result)")
+                let data = try await searchService.searchRawData(from: "c146", to: "c213", date: nil)
+                threadUID = extractFirstThreadUID(from: data)
+                print("✅ search OK. threadUID: \(threadUID ?? "nil")")
             } catch {
                 print("❌ search error: \(error)")
             }
-
-            // ✅ Расписание рейсов по станции
+            
+            // ✅ schedule
             do {
                 let result = try await scheduleService.getSchedule(
                     station: "s9600213",
@@ -70,19 +71,20 @@ private func runNetworkSmokeTests() {
             } catch {
                 print("❌ schedule error: \(error)")
             }
-
-            // ✅ Список станций следования
+            
+            // ✅ thread
             do {
-                let result = try await threadService.getThread(
-                    uid: "UID_HERE",
-                    date: nil
-                )
-                print("✅ thread OK: \(result)")
+                if let uid = threadUID {
+                    let result = try await threadService.getThread(uid: uid, date: nil)
+                    print("✅ thread OK: \(result)")
+                } else {
+                    print("⏭️ thread skipped: uid not found in search response")
+                }
             } catch {
                 print("❌ thread error: \(error)")
             }
-
-            // ✅ Ближайший город
+            
+            // ✅ nearest_settlement
             do {
                 let result = try await nearestSettlementService.getNearestSettlement(
                     lat: 59.864177,
@@ -92,16 +94,16 @@ private func runNetworkSmokeTests() {
             } catch {
                 print("❌ nearest_settlement error: \(error)")
             }
-
-            // ✅ Информация о перевозчике
+            
+            // ✅ carrier
             do {
                 let result = try await carrierService.getCarrier(code: 680)
                 print("✅ carrier OK: \(result)")
             } catch {
                 print("❌ carrier error: \(error)")
             }
-
-            // ✅ Список всех доступных станций
+            
+            // ✅ stations_list
             do {
                 let result = try await stationsListService.getAllStations()
                 let preview = String(describing: result).prefix(200)
@@ -109,21 +111,33 @@ private func runNetworkSmokeTests() {
             } catch {
                 print("❌ stations_list error: \(error)")
             }
-
-            // ✅ Копирайт
+            
+            // ✅ copyright
             do {
                 let result = try await copyrightService.getCopyright()
                 print("✅ copyright OK: \(result)")
             } catch {
                 print("❌ copyright error: \(error)")
             }
-
+            
         } catch {
             print("❌ Failed to init Client: \(error)")
         }
     }
 }
 
-#Preview {
-    ContentView()
+// MARK: - Helpers
+
+private func extractFirstThreadUID(from searchData: Data) -> String? {
+    guard
+        let root = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
+        let segments = root["segments"] as? [[String: Any]],
+        let first = segments.first,
+        let thread = first["thread"] as? [String: Any],
+        let uid = thread["uid"] as? String,
+        !uid.isEmpty
+    else { return nil }
+    
+    return uid
 }
+
