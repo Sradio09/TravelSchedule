@@ -1,32 +1,43 @@
 import Foundation
 import OpenAPIRuntime
-import OpenAPIURLSession
 
-typealias AllStations = Components.Schemas.AllStations
+final class StationsListService {
 
-protocol StationsListServiceProtocol {
-    func getAllStations() async throws -> AllStations
-}
+    enum ServiceError: Error {
+        case invalidRequestURL
+    }
 
-final class StationsListService: StationsListServiceProtocol {
-    private let client: Client
     private let apikey: String
 
     init(client: Client, apikey: String) {
-        self.client = client
         self.apikey = apikey
     }
 
-    func getAllStations() async throws -> AllStations {
-        let response = try await client.getStationsList(
-            query: .init(apikey: apikey)
-        )
-        let responseBody = try response.ok.body.html
+    func loadStationsData() async throws -> Data {
+        guard var components = URLComponents(string: "https://api.rasp.yandex-net.ru/v3.0/stations_list/") else {
+            throw ServiceError.invalidRequestURL
+        }
 
-        let limit = 50 * 1024 * 1024 // 50Mb
-        let fullData = try await Data(collecting: responseBody, upTo: limit)
+        components.queryItems = [
+            URLQueryItem(name: "apikey", value: apikey),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "lang", value: "ru_RU")
+        ]
 
-        let allStations = try JSONDecoder().decode(AllStations.self, from: fullData)
-        return allStations
+        guard let requestURL = components.url else {
+            throw ServiceError.invalidRequestURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: requestURL)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw URLError(.badServerResponse)
+        }
+
+        return data
     }
 }
