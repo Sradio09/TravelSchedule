@@ -402,7 +402,7 @@ paths:
         "200":
           description: success
           content:
-            text/html:
+            application/json:
               schema:
                 $ref: "#/components/schemas/AllStations"
 
@@ -438,9 +438,15 @@ paths:
 
 components:
   schemas:
-    AnyObject:
+    Pagination:
       type: object
-      additionalProperties: true
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
 
     Stations:
       type: object
@@ -451,16 +457,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Station"
-
-    Pagination:
-      type: object
-      properties:
-        total:
-          type: integer
-        limit:
-          type: integer
-        offset:
-          type: integer
 
     Station:
       type: object
@@ -489,22 +485,6 @@ components:
           type: number
         majority:
           type: integer
-        type_choices:
-          $ref: "#/components/schemas/TypeChoices"
-
-    TypeChoices:
-      type: object
-      properties:
-        schedule:
-          $ref: "#/components/schemas/ScheduleUrls"
-
-    ScheduleUrls:
-      type: object
-      properties:
-        desktop_url:
-          type: string
-        touch_url:
-          type: string
 
     SearchResponse:
       type: object
@@ -514,11 +494,67 @@ components:
         segments:
           type: array
           items:
-            $ref: "#/components/schemas/AnyObject"
+            $ref: "#/components/schemas/Segment"
         interval_segments:
           type: array
           items:
-            $ref: "#/components/schemas/AnyObject"
+            $ref: "#/components/schemas/Segment"
+
+    Segment:
+      type: object
+      properties:
+        departure:
+          type: string
+        arrival:
+          type: string
+        duration:
+          type: integer
+        has_transfers:
+          type: boolean
+        start_date:
+          type: string
+        stops:
+          type: string
+        departure_platform:
+          type: string
+          nullable: true
+        arrival_platform:
+          type: string
+          nullable: true
+        departure_terminal:
+          type: string
+          nullable: true
+        arrival_terminal:
+          type: string
+          nullable: true
+        from:
+          $ref: "#/components/schemas/Station"
+        to:
+          $ref: "#/components/schemas/Station"
+        thread:
+          $ref: "#/components/schemas/ThreadShort"
+
+    ThreadShort:
+      type: object
+      properties:
+        uid:
+          type: string
+        title:
+          type: string
+        number:
+          type: string
+        transport_type:
+          type: string
+        carrier:
+          $ref: "#/components/schemas/CarrierShort"
+
+    CarrierShort:
+      type: object
+      properties:
+        code:
+          type: integer
+        title:
+          type: string
 
     ScheduleResponse:
       type: object
@@ -528,13 +564,8 @@ components:
         schedule:
           type: array
           items:
-            $ref: "#/components/schemas/AnyObject"
-        directions:
-          type: array
-          items:
-            $ref: "#/components/schemas/AnyObject"
-        station:
-          $ref: "#/components/schemas/AnyObject"
+            type: object
+            additionalProperties: true
 
     ThreadResponse:
       type: object
@@ -543,15 +574,11 @@ components:
           type: string
         title:
           type: string
-        interval:
-          type: object
-          additionalProperties: true
         stops:
           type: array
           items:
-            $ref: "#/components/schemas/AnyObject"
-        thread:
-          $ref: "#/components/schemas/AnyObject"
+            type: object
+            additionalProperties: true
 
     NearestSettlementResponse:
       type: object
@@ -577,13 +604,57 @@ components:
       type: object
       properties:
         carrier:
-          $ref: "#/components/schemas/AnyObject"
+          $ref: "#/components/schemas/CarrierInfo"
+        carriers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CarrierInfo"
+
+    CarrierInfo:
+      type: object
+      properties:
+        code:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+        contacts:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        logo:
+          type: string
+        email:
+          type: string
 
     CopyrightResponse:
       type: object
       properties:
-        copyright:
-          $ref: "#/components/schemas/AnyObject"
+        carrier:
+          $ref: "#/components/schemas/CarrierFull"
+          
+    CarrierFull:
+      type: object
+      properties:
+        code:
+          type: integer
+        title:
+          type: string
+        logo:
+          type: string
+        url:
+          type: string
+        contacts:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        email:
+          type: string
 
     AllStations:
       type: object
