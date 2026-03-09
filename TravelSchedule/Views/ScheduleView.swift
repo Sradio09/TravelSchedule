@@ -104,8 +104,18 @@ struct ScheduleView: View {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 8) {
                         ForEach(viewModel.rides) { ride in
-                            RideCardView(ride: ride)
-                                .frame(height: 104)
+                            if let carrierCode = ride.carrierCode {
+                                NavigationLink {
+                                    CarrierInfoView(carrierCode: carrierCode)
+                                } label: {
+                                    RideCardView(ride: ride)
+                                        .frame(height: 104)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                RideCardView(ride: ride)
+                                    .frame(height: 104)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
