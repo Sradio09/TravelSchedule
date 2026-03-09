@@ -46,53 +46,72 @@ final class StationsRepository {
     }
 
     private func parse(data: Data) -> [StationChoice] {
-        guard
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let countries = json["countries"] as? [[String: Any]]
-        else {
+        guard let response = try? JSONDecoder().decode(StationsResponse.self, from: data) else {
             return []
         }
 
         var result: [StationChoice] = []
 
-        for country in countries {
-            let regions = country["regions"] as? [[String: Any]] ?? []
-
-            for region in regions {
-                let settlements = region["settlements"] as? [[String: Any]] ?? []
-
-                for settlement in settlements {
-                    let settlementTitle = settlement["title"] as? String
-                    let stations = settlement["stations"] as? [[String: Any]] ?? []
-
-                    for station in stations {
-                        guard
-                            let title = station["title"] as? String,
-                            let codes = station["codes"] as? [String: Any],
-                            let yandexCode = codes["yandex_code"] as? String
-                        else {
-                            continue
-                        }
-
-                        let stationType = station["station_type"] as? String
-                        let stationTypeName = station["station_type_name"] as? String
-
+        for country in response.countries {
+            for region in country.regions {
+                for settlement in region.settlements {
+                    for station in settlement.stations {
                         let item = StationChoice(
-                            title: title,
-                            yandexCode: yandexCode,
-                            settlementTitle: settlementTitle,
-                            stationType: stationType,
-                            stationTypeName: stationTypeName
+                            title: station.title,
+                            yandexCode: station.codes.yandexCode,
+                            settlementTitle: settlement.title,
+                            stationType: station.stationType,
+                            stationTypeName: station.stationTypeName
                         )
-
                         result.append(item)
                     }
                 }
             }
         }
 
-        return result.sorted { lhs, rhs in
-            lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        return result.sorted {
+            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
         }
+    }
+}
+
+// MARK: - DTO
+
+private struct StationsResponse: Decodable {
+    let countries: [Country]
+}
+
+private struct Country: Decodable {
+    let regions: [Region]
+}
+
+private struct Region: Decodable {
+    let settlements: [Settlement]
+}
+
+private struct Settlement: Decodable {
+    let title: String?
+    let stations: [Station]
+}
+
+private struct Station: Decodable {
+    let title: String
+    let stationType: String?
+    let stationTypeName: String?
+    let codes: StationCodes
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case stationType = "station_type"
+        case stationTypeName = "station_type_name"
+        case codes
+    }
+}
+
+private struct StationCodes: Decodable {
+    let yandexCode: String
+
+    enum CodingKeys: String, CodingKey {
+        case yandexCode = "yandex_code"
     }
 }

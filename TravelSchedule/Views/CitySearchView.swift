@@ -8,9 +8,7 @@ struct CitySearchView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var searchText = ""
-    @State private var cities: [StationChoice] = []
-    @State private var isLoading = true
-    @State private var loadError: LoadError?
+    @State private var viewState: CitySearchViewState = .loading
     @State private var selectedCity: StationChoice?
     
     private let popularCitiesOrder: [String] = [
@@ -26,12 +24,8 @@ struct CitySearchView: View {
         "Самара"
     ]
     
-    enum LoadError {
-        case noInternet
-        case server
-    }
-    
     private var filteredCities: [StationChoice] {
+        guard case let .success(cities) = viewState else { return [] }
         guard !searchText.isEmpty else { return cities }
         
         return cities.filter { city in
@@ -41,7 +35,8 @@ struct CitySearchView: View {
     
     var body: some View {
         Group {
-            if isLoading {
+            switch viewState {
+            case .loading:
                 VStack(spacing: 12) {
                     Spacer()
                     ProgressView()
@@ -50,14 +45,11 @@ struct CitySearchView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-            } else if let loadError {
-                switch loadError {
-                case .noInternet:
-                    NoInternetView()
-                case .server:
-                    ServerErrorView()
-                }
-            } else {
+                
+            case .error(let loadError):
+                LoadErrorView(error: loadError)
+                
+            case .success:
                 List(filteredCities) { city in
                     Button {
                         selectedCity = city
@@ -123,52 +115,53 @@ struct CitySearchView: View {
     }
     
     private func loadCities() async {
-        isLoading = true
-        loadError = nil
+        viewState = .loading
         
         do {
             let allStations = try await StationsRepository.shared.loadStations()
-            
-            let stationsWithSettlement = allStations.filter { station in
-                guard let settlementTitle = station.settlementTitle else {
-                    return false
-                }
-                return !settlementTitle.isEmpty
-            }
-            
-            let groupedByCity = Dictionary(
-                grouping: stationsWithSettlement,
-                by: { station in
-                    station.settlementTitle ?? ""
-                }
-            )
-            
-            var resultCities: [StationChoice] = []
-            
-            for (cityTitle, stations) in groupedByCity {
-                guard let firstStation = stations.first else { continue }
-                
-                let city = StationChoice(
-                    title: cityTitle,
-                    yandexCode: firstStation.yandexCode,
-                    settlementTitle: cityTitle
-                )
-                
-                resultCities.append(city)
-            }
-            
-            cities = sortCitiesByPriority(resultCities)
+            let preparedCities = prepareCities(from: allStations)
+            viewState = .success(sortCitiesByPriority(preparedCities))
         } catch let urlError as URLError {
             if urlError.code == .notConnectedToInternet {
-                loadError = .noInternet
+                viewState = .error(.noInternet)
             } else {
-                loadError = .server
+                viewState = .error(.server)
             }
         } catch {
-            loadError = .server
+            viewState = .error(.server)
+        }
+    }
+    
+    private func prepareCities(from stations: [StationChoice]) -> [StationChoice] {
+        let stationsWithSettlement = stations.filter { station in
+            guard let settlementTitle = station.settlementTitle else {
+                return false
+            }
+            return !settlementTitle.isEmpty
         }
         
-        isLoading = false
+        let groupedByCity = Dictionary(
+            grouping: stationsWithSettlement,
+            by: { station in
+                station.settlementTitle ?? ""
+            }
+        )
+        
+        var resultCities: [StationChoice] = []
+        
+        for (cityTitle, stations) in groupedByCity {
+            guard let firstStation = stations.first else { continue }
+            
+            let city = StationChoice(
+                title: cityTitle,
+                yandexCode: firstStation.yandexCode,
+                settlementTitle: cityTitle
+            )
+            
+            resultCities.append(city)
+        }
+        
+        return resultCities
     }
     
     private func sortCitiesByPriority(_ cities: [StationChoice]) -> [StationChoice] {

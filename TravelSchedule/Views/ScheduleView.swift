@@ -88,12 +88,7 @@ struct ScheduleView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
         case let .failed(error):
-            switch error {
-            case .noInternet:
-                NoInternetView()
-            case .server:
-                ServerErrorView()
-            }
+            LoadErrorView(error: error)
             
         case .loaded:
             if viewModel.rides.isEmpty {

@@ -43,7 +43,6 @@ private func runNetworkSmokeTests() {
             let stationsListService = StationsListService(client: client, apikey: key)
             let copyrightService = CopyrightService(client: client, apikey: key)
             
-            // ✅ nearest_stations
             do {
                 let result = try await nearestStations.getNearestStations(
                     lat: 59.864177,
@@ -55,7 +54,6 @@ private func runNetworkSmokeTests() {
                 print("❌ nearest_stations error: \(error)")
             }
             
-            // ✅ search
             var threadUID: String? = nil
             do {
                 let data = try await searchService.searchRawData(
@@ -63,13 +61,12 @@ private func runNetworkSmokeTests() {
                     to: "c213",
                     date: nil
                 )
-                threadUID = extractFirstThreadUID(from: data)
+                threadUID = ThreadUIDExtractor.firstThreadUID(from: data)
                 print("✅ search OK. threadUID: \(threadUID ?? "nil")")
             } catch {
                 print("❌ search error: \(error)")
             }
             
-            // ✅ schedule
             do {
                 let result = try await scheduleService.getSchedule(
                     station: "s9600213",
@@ -80,7 +77,6 @@ private func runNetworkSmokeTests() {
                 print("❌ schedule error: \(error)")
             }
             
-            // ✅ thread
             do {
                 if let uid = threadUID {
                     let result = try await threadService.getThread(uid: uid, date: nil)
@@ -92,7 +88,6 @@ private func runNetworkSmokeTests() {
                 print("❌ thread error: \(error)")
             }
             
-            // ✅ nearest_settlement
             do {
                 let result = try await nearestSettlementService.getNearestSettlement(
                     lat: 59.864177,
@@ -103,7 +98,6 @@ private func runNetworkSmokeTests() {
                 print("❌ nearest_settlement error: \(error)")
             }
             
-            // ✅ carrier
             do {
                 let result = try await carrierService.getCarrier(code: 680)
                 print("✅ carrier OK: \(result)")
@@ -111,7 +105,6 @@ private func runNetworkSmokeTests() {
                 print("❌ carrier error: \(error)")
             }
             
-            // ✅ stations_list
             do {
                 let data = try await stationsListService.loadStationsData()
                 let preview = String(data: data, encoding: .utf8)?.prefix(200) ?? "no preview"
@@ -120,7 +113,6 @@ private func runNetworkSmokeTests() {
                 print("❌ stations_list error: \(error)")
             }
             
-            // ✅ copyright
             do {
                 let result = try await copyrightService.getCopyright()
                 print("✅ copyright OK: \(result)")
@@ -132,19 +124,6 @@ private func runNetworkSmokeTests() {
             print("❌ Failed to init Client: \(error)")
         }
     }
-}
-
-private func extractFirstThreadUID(from searchData: Data) -> String? {
-    guard
-        let root = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
-        let segments = root["segments"] as? [[String: Any]],
-        let first = segments.first,
-        let thread = first["thread"] as? [String: Any],
-        let uid = thread["uid"] as? String,
-        !uid.isEmpty
-    else { return nil }
-    
-    return uid
 }
 
 #Preview {

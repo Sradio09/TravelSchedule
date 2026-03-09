@@ -2,16 +2,26 @@ import Foundation
 
 enum ThreadUIDExtractor {
     static func firstThreadUID(from searchData: Data) -> String? {
-        guard
-            let root = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
-            let segments = root["segments"] as? [[String: Any]],
-            let first = segments.first,
-            let thread = first["thread"] as? [String: Any],
-            let uid = thread["uid"] as? String,
-            !uid.isEmpty
-        else {
+        guard let response = try? JSONDecoder().decode(SearchResponseDTO.self, from: searchData) else {
             return nil
         }
+        
+        guard let uid = response.segments.first?.thread.uid, !uid.isEmpty else {
+            return nil
+        }
+        
         return uid
     }
+}
+
+private struct SearchResponseDTO: Decodable {
+    let segments: [SegmentDTO]
+}
+
+private struct SegmentDTO: Decodable {
+    let thread: ThreadDTO
+}
+
+private struct ThreadDTO: Decodable {
+    let uid: String
 }
