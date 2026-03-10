@@ -1,41 +1,16 @@
 import SwiftUI
 
 struct CitySearchView: View {
-    
     let title: String
-    let onSelect: (StationChoice) -> Void
-    
+    let onSelect: @Sendable (StationChoice) -> Void
+
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var searchText = ""
-    @State private var viewState: CitySearchViewState = .loading
+    @StateObject private var viewModel = CitySearchViewModel()
     @State private var selectedCity: StationChoice?
-    
-    private let popularCitiesOrder: [String] = [
-        "Москва",
-        "Санкт-Петербург",
-        "Казань",
-        "Нижний Новгород",
-        "Сочи",
-        "Екатеринбург",
-        "Краснодар",
-        "Ростов-на-Дону",
-        "Новосибирск",
-        "Самара"
-    ]
-    
-    private var filteredCities: [StationChoice] {
-        guard case let .success(cities) = viewState else { return [] }
-        guard !searchText.isEmpty else { return cities }
-        
-        return cities.filter { city in
-            city.title.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-    
+
     var body: some View {
         Group {
-            switch viewState {
+            switch viewModel.viewState {
             case .loading:
                 VStack(spacing: 12) {
                     Spacer()
@@ -45,12 +20,12 @@ struct CitySearchView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                
+
             case .error(let loadError):
                 LoadErrorView(error: loadError)
-                
+
             case .success:
-                List(filteredCities) { city in
+                List(viewModel.filteredCities) { city in
                     Button {
                         selectedCity = city
                     } label: {
@@ -58,9 +33,9 @@ struct CitySearchView: View {
                             Text(city.title)
                                 .font(.system(size: 17))
                                 .foregroundStyle(Color("YPBlack"))
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundStyle(Color("YPBlack"))
                                 .padding(.trailing, 16)
@@ -78,9 +53,9 @@ struct CitySearchView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .background(Color("YPWhite"))
-                .searchable(text: $searchText, prompt: "Поиск города")
+                .searchable(text: $viewModel.searchText, prompt: "Поиск города")
                 .overlay {
-                    if filteredCities.isEmpty {
+                    if viewModel.filteredCities.isEmpty {
                         VStack {
                             Spacer()
                             Text("Город не найден")
@@ -101,7 +76,7 @@ struct CitySearchView: View {
             }
         }
         .task {
-            await loadCities()
+            await viewModel.loadCities()
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -110,78 +85,6 @@ struct CitySearchView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                 }
-            }
-        }
-    }
-    
-    private func loadCities() async {
-        viewState = .loading
-        
-        do {
-            let allStations = try await StationsRepository.shared.loadStations()
-            let preparedCities = prepareCities(from: allStations)
-            viewState = .success(sortCitiesByPriority(preparedCities))
-        } catch let urlError as URLError {
-            if urlError.code == .notConnectedToInternet {
-                viewState = .error(.noInternet)
-            } else {
-                viewState = .error(.server)
-            }
-        } catch {
-            viewState = .error(.server)
-        }
-    }
-    
-    private func prepareCities(from stations: [StationChoice]) -> [StationChoice] {
-        let stationsWithSettlement = stations.filter { station in
-            guard let settlementTitle = station.settlementTitle else {
-                return false
-            }
-            return !settlementTitle.isEmpty
-        }
-        
-        let groupedByCity = Dictionary(
-            grouping: stationsWithSettlement,
-            by: { station in
-                station.settlementTitle ?? ""
-            }
-        )
-        
-        var resultCities: [StationChoice] = []
-        
-        for (cityTitle, stations) in groupedByCity {
-            guard let firstStation = stations.first else { continue }
-            
-            let city = StationChoice(
-                title: cityTitle,
-                yandexCode: firstStation.yandexCode,
-                settlementTitle: cityTitle
-            )
-            
-            resultCities.append(city)
-        }
-        
-        return resultCities
-    }
-    
-    private func sortCitiesByPriority(_ cities: [StationChoice]) -> [StationChoice] {
-        let priorities = Dictionary(
-            uniqueKeysWithValues: popularCitiesOrder.enumerated().map { ($1, $0) }
-        )
-        
-        return cities.sorted { lhs, rhs in
-            let leftPriority = priorities[lhs.title]
-            let rightPriority = priorities[rhs.title]
-            
-            switch (leftPriority, rightPriority) {
-            case let (left?, right?):
-                return left < right
-            case (_?, nil):
-                return true
-            case (nil, _?):
-                return false
-            case (nil, nil):
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
         }
     }

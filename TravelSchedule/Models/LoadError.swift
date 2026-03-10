@@ -1,6 +1,6 @@
 import Foundation
 
-enum LoadError: Equatable {
+enum LoadError: Equatable, Sendable {
     case noInternet
     case server
 }

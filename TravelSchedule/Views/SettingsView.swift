@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("is_dark_theme") private var isDarkTheme = false
-    @State private var showUserAgreement = false
+    @StateObject private var viewModel = SettingsViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,14 +13,14 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Toggle("", isOn: $isDarkTheme)
+                    Toggle("", isOn: $viewModel.isDarkTheme)
                         .labelsHidden()
                         .fixedSize()
                         .tint(Color("YPBlueUniversal"))
                 }
 
                 Button {
-                    showUserAgreement = true
+                    viewModel.openUserAgreement()
                 } label: {
                     settingsRow(height: 60) {
                         Text("Пользовательское соглашение")
@@ -43,11 +42,11 @@ struct SettingsView: View {
             Spacer()
 
             VStack(spacing: 8) {
-                Text("Приложение использует API «Яндекс.Расписания»")
+                Text(viewModel.apiDescription)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(Color("YPBlack"))
 
-                Text("Версия 1.0 (beta)")
+                Text(viewModel.versionDescription)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(Color("YPBlack"))
             }
@@ -56,7 +55,7 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .background(Color("YPWhite").ignoresSafeArea())
-        .fullScreenCover(isPresented: $showUserAgreement) {
+        .fullScreenCover(isPresented: $viewModel.showUserAgreement) {
             UserAgreementView()
         }
     }
