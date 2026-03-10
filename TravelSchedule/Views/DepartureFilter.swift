@@ -1,6 +1,6 @@
 import Foundation
 
-struct DepartureFilter {
+struct DepartureFilter: Sendable {
     
     let morning: Bool
     let day: Bool

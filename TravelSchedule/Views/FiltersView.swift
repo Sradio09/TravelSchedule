@@ -3,17 +3,17 @@ import SwiftUI
 struct FiltersView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = FiltersViewModel()
 
-    @State private var morning = false
-    @State private var day = false
-    @State private var evening = false
-    @State private var night = false
-    @State private var allowTransfers = true
-
+    private let initialFilter: DepartureFilter?
     let onApply: (DepartureFilter) -> Void
 
-    private var hasSelection: Bool {
-        morning || day || evening || night || !allowTransfers
+    init(
+        initialFilter: DepartureFilter? = nil,
+        onApply: @escaping (DepartureFilter) -> Void
+    ) {
+        self.initialFilter = initialFilter
+        self.onApply = onApply
     }
 
     var body: some View {
@@ -28,10 +28,10 @@ struct FiltersView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 24)
 
-                checkboxRow("Утро 06:00 - 12:00", isOn: $morning)
-                checkboxRow("День 12:00 - 18:00", isOn: $day)
-                checkboxRow("Вечер 18:00 - 00:00", isOn: $evening)
-                checkboxRow("Ночь 00:00 - 06:00", isOn: $night)
+                checkboxRow("Утро 06:00 - 12:00", isOn: $viewModel.morning)
+                checkboxRow("День 12:00 - 18:00", isOn: $viewModel.day)
+                checkboxRow("Вечер 18:00 - 00:00", isOn: $viewModel.evening)
+                checkboxRow("Ночь 00:00 - 06:00", isOn: $viewModel.night)
 
                 Text("Показывать варианты с\nпересадками")
                     .font(.system(size: 24, weight: .bold))
@@ -39,17 +39,20 @@ struct FiltersView: View {
                     .padding(.top, 24)
                     .padding(.bottom, 24)
 
-                radioRow("Да", selected: allowTransfers) {
-                    allowTransfers = true
+                radioRow("Да", selected: viewModel.allowTransfers) {
+                    viewModel.setAllowTransfers(true)
                 }
 
-                radioRow("Нет", selected: !allowTransfers) {
-                    allowTransfers = false
+                radioRow("Нет", selected: !viewModel.allowTransfers) {
+                    viewModel.setAllowTransfers(false)
                 }
 
                 Spacer()
             }
             .padding(.horizontal, 16)
+        }
+        .task {
+            viewModel.apply(initialFilter: initialFilter)
         }
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
@@ -68,7 +71,7 @@ struct FiltersView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if hasSelection {
+            if viewModel.hasSelection {
                 applyButton
             }
         }
@@ -106,7 +109,11 @@ struct FiltersView: View {
         .buttonStyle(.plain)
     }
 
-    private func radioRow(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func radioRow(
+        _ title: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
             action()
         } label: {
@@ -136,15 +143,7 @@ struct FiltersView: View {
 
     private var applyButton: some View {
         Button {
-            let filter = DepartureFilter(
-                morning: morning,
-                day: day,
-                evening: evening,
-                night: night,
-                allowTransfers: allowTransfers
-            )
-
-            onApply(filter)
+            onApply(viewModel.currentFilter)
             dismiss()
         } label: {
             Text("Применить")
