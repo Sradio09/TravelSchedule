@@ -6,9 +6,7 @@ struct StoryViewerView: View {
     let onStorySeen: (Story) -> Void
 
     @Environment(\.dismiss) private var dismiss
-
-    @State private var selectedStoryIndex: Int = 0
-    @State private var selectedPageIndex: Int = 0
+    @StateObject private var viewModel: StoryViewerViewModel
 
     private let storyCornerRadius: CGFloat = 40
     private let progressTopInset: CGFloat = 35
@@ -17,6 +15,19 @@ struct StoryViewerView: View {
     private let closeButtonSize: CGFloat = 30
     private let textHorizontalInset: CGFloat = 16
     private let textBottomInset: CGFloat = 98
+
+    init(
+        startIndex: Int,
+        stories: [Story],
+        onStorySeen: @escaping (Story) -> Void
+    ) {
+        self.startIndex = startIndex
+        self.stories = stories
+        self.onStorySeen = onStorySeen
+        _viewModel = StateObject(
+            wrappedValue: StoryViewerViewModel(startIndex: startIndex, stories: stories)
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -28,8 +39,7 @@ struct StoryViewerView: View {
                 let safeTop = geometry.safeAreaInsets.top
                 let safeBottom = geometry.safeAreaInsets.bottom
 
-                if stories.indices.contains(selectedStoryIndex) {
-                    let story = stories[selectedStoryIndex]
+                if let story = viewModel.currentStory {
                     let frame = storyFrame(in: canvasSize, safeTop: safeTop, safeBottom: safeBottom)
 
                     ZStack {
@@ -40,33 +50,16 @@ struct StoryViewerView: View {
                     .overlay(alignment: .top) {
                         topOverlay(pagesCount: story.pages.count)
                     }
-                    .frame(width: canvasSize.width, height: canvasSize.height)
                 }
             }
         }
-        .onAppear {
-            let safeIndex = min(max(0, startIndex), max(0, stories.count - 1))
-            selectedStoryIndex = safeIndex
-            selectedPageIndex = 0
-
-            if stories.indices.contains(safeIndex) {
-                onStorySeen(stories[safeIndex])
-            }
+        .task {
+            viewModel.markInitialStorySeen(onStorySeen: onStorySeen)
         }
-        .gesture(
-            DragGesture(minimumDistance: 20)
-                .onEnded { value in
-                    if value.translation.width < -40 {
-                        showNextPageOrStory()
-                    } else if value.translation.width > 40 {
-                        showPreviousPageOrStory()
-                    }
-                }
-        )
     }
 
     private func storyCard(story: Story, frame: CGRect) -> some View {
-        let currentImageName = story.pages[selectedPageIndex]
+        let currentImageName = story.pages[safe: viewModel.selectedPageIndex] ?? story.imageName
 
         return ZStack(alignment: .bottomLeading) {
             storyImage(named: currentImageName, frame: frame)
@@ -136,7 +129,7 @@ struct StoryViewerView: View {
             HStack(spacing: 6) {
                 ForEach(0..<pagesCount, id: \.self) { index in
                     Capsule()
-                        .fill(index <= selectedPageIndex ? Color("YPBlueUniversal") : .white)
+                        .fill(index <= viewModel.selectedPageIndex ? Color("YPBlueUniversal") : .white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 6)
                 }
@@ -184,57 +177,20 @@ struct StoryViewerView: View {
     }
 
     private func showNextPageOrStory() {
-        guard stories.indices.contains(selectedStoryIndex) else { return }
-        let pagesCount = stories[selectedStoryIndex].pages.count
-
-        if selectedPageIndex < pagesCount - 1 {
-            var transaction = Transaction()
-            transaction.animation = nil
-
-            withTransaction(transaction) {
-                selectedPageIndex += 1
-            }
-        } else {
-            showNextStory()
+        let didContinue = viewModel.showNextPageOrStory(onStorySeen: onStorySeen)
+        if !didContinue {
+            dismiss()
         }
     }
 
     private func showPreviousPageOrStory() {
-        guard stories.indices.contains(selectedStoryIndex) else { return }
-
-        if selectedPageIndex > 0 {
-            var transaction = Transaction()
-            transaction.animation = nil
-
-            withTransaction(transaction) {
-                selectedPageIndex -= 1
-            }
-        } else if selectedStoryIndex > 0 {
-            let previousStoryIndex = selectedStoryIndex - 1
-            let previousLastPageIndex = max(stories[previousStoryIndex].pages.count - 1, 0)
-
-            withAnimation(.easeInOut(duration: 0.25)) {
-                selectedStoryIndex = previousStoryIndex
-                selectedPageIndex = previousLastPageIndex
-            }
-
-            onStorySeen(stories[previousStoryIndex])
-        }
+        viewModel.showPreviousPageOrStory(onStorySeen: onStorySeen)
     }
+}
 
-    private func showNextStory() {
-        let nextStoryIndex = selectedStoryIndex + 1
-        guard stories.indices.contains(nextStoryIndex) else {
-            dismiss()
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.25)) {
-            selectedStoryIndex = nextStoryIndex
-            selectedPageIndex = 0
-        }
-
-        onStorySeen(stories[nextStoryIndex])
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 

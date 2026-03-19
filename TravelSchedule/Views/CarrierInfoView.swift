@@ -1,20 +1,14 @@
 import SwiftUI
-import OpenAPIRuntime
-import OpenAPIURLSession
 
 struct CarrierInfoView: View {
     let carrierCode: Int
 
     @Environment(\.dismiss) private var dismiss
-    @State private var carrier: Components.Schemas.CarrierInfo?
-    @State private var isLoading = true
-    @State private var hasError = false
+    @StateObject private var viewModel: CarrierInfoViewModel
 
-    private var client: Client? {
-        try? Client(
-            serverURL: Servers.Server1.url(),
-            transport: URLSessionTransport()
-        )
+    init(carrierCode: Int) {
+        self.carrierCode = carrierCode
+        _viewModel = StateObject(wrappedValue: CarrierInfoViewModel(carrierCode: carrierCode))
     }
 
     var body: some View {
@@ -22,16 +16,13 @@ struct CarrierInfoView: View {
             Color("YPWhite")
                 .ignoresSafeArea()
 
-            Group {
-                if isLoading {
-                    ProgressView()
-                } else if hasError {
-                    LoadErrorView(error: .server)
-                } else if let carrier {
-                    content(for: carrier)
-                } else {
-                    LoadErrorView(error: .server)
-                }
+            switch viewModel.state {
+            case .loading:
+                ProgressView()
+            case .failed(let error):
+                LoadErrorView(error: error)
+            case .loaded(let carrier):
+                content(for: carrier)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -49,7 +40,7 @@ struct CarrierInfoView: View {
             }
         }
         .task {
-            await loadCarrier()
+            await viewModel.load()
         }
     }
 
@@ -123,25 +114,6 @@ struct CarrierInfoView: View {
                         .foregroundStyle(Color("YPBlack"))
                 }
         }
-    }
-
-    private func loadCarrier() async {
-        guard let client else {
-            isLoading = false
-            hasError = true
-            return
-        }
-
-        do {
-            let service = CarrierInfoService(client: client, apikey: APIKey.yandexRasp)
-            let response = try await service.getCarrier(code: carrierCode)
-            carrier = response.carrier
-            hasError = carrier == nil
-        } catch {
-            hasError = true
-        }
-
-        isLoading = false
     }
 
     private func normalizedURL(from rawLogo: String?) -> URL? {

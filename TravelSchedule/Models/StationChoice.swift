@@ -1,6 +1,6 @@
 import Foundation
 
-struct StationChoice: Identifiable, Codable, Hashable {
+struct StationChoice: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let title: String
     let yandexCode: String

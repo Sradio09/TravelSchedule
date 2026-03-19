@@ -1,45 +1,7 @@
 import SwiftUI
 
 struct StartView: View {
-    @State private var fromStation: StationChoice?
-    @State private var toStation: StationChoice?
-
-    @State private var showStoryViewer = false
-    @State private var selectedStoryIndex = 0
-    @State private var storyRefreshToken = UUID()
-
-    @State private var activeSelection: SelectionType?
-    @State private var showSchedule = false
-
-    private let stories = Story.mock
-
-    private var canSearch: Bool {
-        fromStation != nil && toStation != nil
-    }
-
-    private var fromTitle: String {
-        fromStation?.title ?? "Откуда"
-    }
-
-    private var toTitle: String {
-        toStation?.title ?? "Куда"
-    }
-
-    private enum SelectionType: Identifiable {
-        case from
-        case to
-
-        var id: Int {
-            switch self {
-            case .from: return 0
-            case .to: return 1
-            }
-        }
-
-        var screenTitle: String {
-            "Выбор города"
-        }
-    }
+    @StateObject private var viewModel = StartViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,18 +13,18 @@ struct StartView: View {
             Spacer()
         }
         .background(Color("YPWhite").ignoresSafeArea())
-        .fullScreenCover(item: $activeSelection) { selection in
+        .fullScreenCover(item: $viewModel.activeSelection) { selection in
             citySelectionScreen(for: selection)
         }
-        .navigationDestination(isPresented: $showSchedule) {
-            if let fromStation, let toStation {
+        .navigationDestination(isPresented: $viewModel.showSchedule) {
+            if let fromStation = viewModel.fromStation, let toStation = viewModel.toStation {
                 ScheduleView(from: fromStation, to: toStation)
             }
         }
-        .fullScreenCover(isPresented: $showStoryViewer, onDismiss: {
-            storyRefreshToken = UUID()
+        .fullScreenCover(isPresented: $viewModel.showStoryViewer, onDismiss: {
+            viewModel.handleStoryDismiss()
         }) {
-            StoryViewerView(startIndex: selectedStoryIndex, stories: stories) { story in
+            StoryViewerView(startIndex: viewModel.selectedStoryIndex, stories: viewModel.stories) { story in
                 StorySeenStore.markSeen(story)
             }
         }
@@ -72,9 +34,9 @@ struct StartView: View {
         VStack(spacing: 12) {
             fromToFields
 
-            if canSearch {
+            if viewModel.canSearch {
                 Button {
-                    showSchedule = true
+                    viewModel.openSchedule()
                 } label: {
                     Text("Найти")
                         .font(.system(size: 17, weight: .semibold))
@@ -89,16 +51,12 @@ struct StartView: View {
         .padding(.horizontal, 16)
     }
 
-    private func citySelectionScreen(for selection: SelectionType) -> some View {
+    private func citySelectionScreen(for selection: StartViewModel.SelectionType) -> some View {
         NavigationStack {
             CitySearchView(title: selection.screenTitle) { station in
-                switch selection {
-                case .from:
-                    fromStation = station
-                case .to:
-                    toStation = station
+                Task { @MainActor in
+                    viewModel.setStation(station, for: selection)
                 }
-                activeSelection = nil
             }
         }
     }
@@ -106,10 +64,9 @@ struct StartView: View {
     private var storiesPanel: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(Array(stories.enumerated()), id: \.element.id) { index, story in
+                ForEach(Array(viewModel.stories.enumerated()), id: \.element.id) { index, story in
                     Button {
-                        selectedStoryIndex = index
-                        showStoryViewer = true
+                        viewModel.selectStory(at: index)
                     } label: {
                         storyPreview(story)
                     }
@@ -121,7 +78,7 @@ struct StartView: View {
             .padding(.vertical, 4)
         }
         .frame(height: 172)
-        .id(storyRefreshToken)
+        .id(viewModel.storyRefreshToken)
     }
 
     private func storyPreview(_ story: Story) -> some View {
@@ -169,16 +126,16 @@ struct StartView: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     Button {
-                        activeSelection = .from
+                        viewModel.openSelection(.from)
                     } label: {
-                        fieldRow(text: fromTitle, isPlaceholder: fromStation == nil)
+                        fieldRow(text: viewModel.fromTitle, isPlaceholder: viewModel.fromStation == nil)
                     }
                     .buttonStyle(.plain)
 
                     Button {
-                        activeSelection = .to
+                        viewModel.openSelection(.to)
                     } label: {
-                        fieldRow(text: toTitle, isPlaceholder: toStation == nil)
+                        fieldRow(text: viewModel.toTitle, isPlaceholder: viewModel.toStation == nil)
                     }
                     .buttonStyle(.plain)
                 }
@@ -194,7 +151,7 @@ struct StartView: View {
             }
 
             Button {
-                swapStations()
+                viewModel.swapStations()
             } label: {
                 Image("change")
                     .resizable()
@@ -213,12 +170,6 @@ struct StartView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 48)
-    }
-
-    private func swapStations() {
-        let temp = fromStation
-        fromStation = toStation
-        toStation = temp
     }
 }
 
